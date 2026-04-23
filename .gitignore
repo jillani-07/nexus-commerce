@@ -1,0 +1,51 @@
+# ================================
+# SECURITY — Never commit these
+# ================================
+
+# Environment files
+.env
+.env.*
+!.env.example
+*.env
+
+# GCP credentials
+gcp-key.json
+service-account*.json
+*-credentials.json
+*.pem
+*.key
+
+# Laravel
+backend/.env
+backend/.env.*
+!backend/.env.example
+backend/storage/logs/*
+backend/bootstrap/cache/*
+backend/vendor/
+
+# Next.js
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+frontend/.next/
+frontend/node_modules/
+frontend/out/
+
+# Terraform state (contains secrets)
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.backup
+infra/terraform/*.tfvars
+!infra/terraform/terraform.tfvars.example
+
+# Docker
+infra/docker/.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
