@@ -1,7 +1,7 @@
 # ─── Stage 1: Base ─────────────────────────────────
-FROM php:8.2-fpm-alpine AS base
+FROM php:8.4-fpm-alpine AS base
 
-# Install system dependencies
+# Install system dependencies + autoconf (needed for pecl)
 RUN apk add --no-cache \
     git \
     curl \
@@ -10,7 +10,10 @@ RUN apk add --no-cache \
     zip \
     unzip \
     postgresql-dev \
-    oniguruma-dev
+    oniguruma-dev \
+    autoconf \
+    g++ \
+    make
 
 # Install PHP extensions
 RUN docker-php-ext-install \
@@ -24,8 +27,10 @@ RUN docker-php-ext-install \
     gd \
     opcache
 
-# Install Redis extension
-RUN pecl install redis && docker-php-ext-enable redis
+# Install Redis extension via pecl
+RUN pecl install redis \
+    && docker-php-ext-enable redis \
+    && rm -rf /tmp/pear
 
 # Install Composer
 COPY --from=composer:2.7 /usr/bin/composer /usr/bin/composer
@@ -41,8 +46,8 @@ RUN composer install --no-scripts --no-autoloader
 COPY . .
 RUN composer dump-autoload --optimize
 
-RUN chown -R www-data:www-data /var/www/html/storage
-RUN chown -R www-data:www-data /var/www/html/bootstrap/cache
+RUN chown -R www-data:www-data /var/www/html/storage \
+    && chown -R www-data:www-data /var/www/html/bootstrap/cache
 
 EXPOSE 8000
 CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
@@ -57,16 +62,3 @@ COPY composer.json composer.lock ./
 RUN composer install --no-dev --no-scripts --no-autoloader --optimize-autoloader
 
 COPY . .
-RUN composer dump-autoload --optimize --no-dev
-
-# Security: remove unnecessary files
-RUN rm -rf tests/ README.md .env.example
-
-RUN chown -R www-data:www-data /var/www/html/storage
-RUN chown -R www-data:www-data /var/www/html/bootstrap/cache
-
-# Security: run as non-root
-USER www-data
-
-EXPOSE 8000
-CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]

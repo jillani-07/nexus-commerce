@@ -12,18 +12,11 @@ WORKDIR /app
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 
+ENV NODE_ENV=development
+ENV NEXT_TELEMETRY_DISABLED=1
+
 EXPOSE 3000
-CMD ["npm", "run", "dev"]
-
-# ─── Stage 3: Builder ──────────────────────────────
-FROM node:20-alpine AS builder
-
-WORKDIR /app
-COPY --from=dependencies /app/node_modules ./node_modules
-COPY . .
-
-# Build with production env
-RUN npm run build
+CMD ["node_modules/.bin/next", "dev", "--hostname", "0.0.0.0", "--port", "3000"]
 
 # ─── Stage 4: Production ───────────────────────────
 FROM node:20-alpine AS production
