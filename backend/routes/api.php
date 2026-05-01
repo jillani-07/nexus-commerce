@@ -1,55 +1,50 @@
 <?php
 
-use App\Http\Controllers\Api\V1\AuthController;
-use App\Http\Controllers\Api\V1\CartController;
-use App\Http\Controllers\Api\V1\CategoryController;
-use App\Http\Controllers\Api\V1\OrderController;
-use App\Http\Controllers\Api\V1\ProductController;
-use App\Http\Controllers\Api\V1\Admin\AdminOrderController;
-use App\Http\Controllers\Api\V1\Admin\AdminProductController;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CartController;
+use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\OrderController;
+use App\Http\Controllers\ProductController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
 
-    // ─── Public Routes ─────────────────────────────
-    Route::prefix('auth')->group(function () {
-        Route::post('register', [AuthController::class, 'register']);
-        Route::post('login',    [AuthController::class, 'login']);
-    });
+    // Public routes
+    Route::post('/register', [AuthController::class, 'register']);
+    Route::post('/login',    [AuthController::class, 'login']);
 
-    Route::get('products',          [ProductController::class, 'index']);
-    Route::get('products/{slug}',   [ProductController::class, 'show']);
-    Route::get('categories',        [CategoryController::class, 'index']);
+    Route::get('/products',          [ProductController::class, 'index']);
+    Route::get('/products/{product}', [ProductController::class, 'show']);
+    Route::get('/categories',         [CategoryController::class, 'index']);
+    Route::get('/categories/{category}', [CategoryController::class, 'show']);
 
-    // ─── Authenticated Routes ──────────────────────
+    // Authenticated routes
     Route::middleware('auth:sanctum')->group(function () {
 
-        Route::post('auth/logout',  [AuthController::class, 'logout']);
-        Route::get('auth/me',       [AuthController::class, 'me']);
+        Route::post('/logout', [AuthController::class, 'logout']);
+        Route::get('/me',      [AuthController::class, 'me']);
 
         // Cart
-        Route::get('cart',                  [CartController::class, 'index']);
-        Route::post('cart/add',             [CartController::class, 'add']);
-        Route::delete('cart/items/{id}',    [CartController::class, 'remove']);
-        Route::delete('cart',               [CartController::class, 'clear']);
+        Route::get('/cart',                   [CartController::class, 'index']);
+        Route::post('/cart/items',            [CartController::class, 'addItem']);
+        Route::put('/cart/items/{cartItem}',  [CartController::class, 'updateItem']);
+        Route::delete('/cart/items/{cartItem}', [CartController::class, 'removeItem']);
+        Route::delete('/cart',               [CartController::class, 'clear']);
 
         // Orders
-        Route::get('orders',                [OrderController::class, 'index']);
-        Route::post('orders',               [OrderController::class, 'store']);
-        Route::get('orders/{id}',           [OrderController::class, 'show']);
-        Route::patch('orders/{id}/cancel',  [OrderController::class, 'cancel']);
-    });
+        Route::get('/orders',          [OrderController::class, 'index']);
+        Route::post('/orders',         [OrderController::class, 'store']);
+        Route::get('/orders/{order}',  [OrderController::class, 'show']);
 
-    // ─── Admin Routes ──────────────────────────────
-    Route::middleware(['auth:sanctum', 'admin'])
-        ->prefix('admin')
-        ->group(function () {
+        // Admin only
+        Route::middleware('can:admin')->group(function () {
+            Route::post('/products',             [ProductController::class, 'store']);
+            Route::put('/products/{product}',    [ProductController::class, 'update']);
+            Route::delete('/products/{product}', [ProductController::class, 'destroy']);
 
-        // Products
-        Route::apiResource('products', AdminProductController::class);
-
-        // Orders
-        Route::get('orders',                    [AdminOrderController::class, 'index']);
-        Route::patch('orders/{id}/status',      [AdminOrderController::class, 'updateStatus']);
+            Route::post('/categories',               [CategoryController::class, 'store']);
+            Route::put('/categories/{category}',     [CategoryController::class, 'update']);
+            Route::delete('/categories/{category}',  [CategoryController::class, 'destroy']);
+        });
     });
 });
