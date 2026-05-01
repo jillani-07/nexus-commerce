@@ -2,16 +2,6 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-
-class Product extends Model
-{
-    //
-}
-<?php
-
-namespace App\Models;
-
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -39,12 +29,12 @@ class Product extends Model
     ];
 
     protected $casts = [
-        'price'          => 'decimal:2',
-        'sale_price'     => 'decimal:2',
-        'attributes'     => 'array',
-        'track_stock'    => 'boolean',
-        'is_active'      => 'boolean',
-        'is_featured'    => 'boolean',
+        'price'       => 'decimal:2',
+        'sale_price'  => 'decimal:2',
+        'attributes'  => 'array',
+        'track_stock' => 'boolean',
+        'is_active'   => 'boolean',
+        'is_featured' => 'boolean',
     ];
 
     public function category()
