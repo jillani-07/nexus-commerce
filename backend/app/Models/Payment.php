@@ -2,6 +2,16 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Model;
+
+class Payment extends Model
+{
+    //
+}
+<?php
+
+namespace App\Models;
+
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,8 +22,8 @@ class Payment extends Model
 
     protected $fillable = [
         'order_id',
-        'transaction_id',
-        'method',
+        'gateway',
+        'gateway_transaction_id',
         'status',
         'amount',
         'currency',
@@ -27,22 +37,12 @@ class Payment extends Model
         'paid_at'          => 'datetime',
     ];
 
-    // Security: never expose gateway_response in API
     protected $hidden = [
         'gateway_response',
     ];
 
-    // ─── Relationships ─────────────────────────────
-
     public function order()
     {
         return $this->belongsTo(Order::class);
-    }
-
-    // ─── Helpers ───────────────────────────────────
-
-    public function isCompleted(): bool
-    {
-        return $this->status === 'completed';
     }
 }

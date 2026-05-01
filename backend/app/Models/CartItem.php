@@ -2,6 +2,16 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Model;
+
+class CartItem extends Model
+{
+    //
+}
+<?php
+
+namespace App\Models;
+
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -21,8 +31,6 @@ class CartItem extends Model
         'unit_price' => 'decimal:2',
     ];
 
-    // ─── Relationships ─────────────────────────────
-
     public function cart()
     {
         return $this->belongsTo(Cart::class);
@@ -32,8 +40,6 @@ class CartItem extends Model
     {
         return $this->belongsTo(Product::class);
     }
-
-    // ─── Helpers ───────────────────────────────────
 
     public function getSubtotalAttribute(): float
     {

@@ -2,6 +2,16 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Model;
+
+class Order extends Model
+{
+    //
+}
+<?php
+
+namespace App\Models;
+
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,24 +26,24 @@ class Order extends Model
         'order_number',
         'status',
         'subtotal',
-        'tax',
-        'shipping_cost',
-        'total',
+        'tax_amount',
+        'shipping_amount',
+        'discount_amount',
+        'total_amount',
         'shipping_address',
-        'shipping_city',
-        'shipping_country',
-        'shipping_postal_code',
+        'billing_address',
         'notes',
     ];
 
     protected $casts = [
-        'subtotal'      => 'decimal:2',
-        'tax'           => 'decimal:2',
-        'shipping_cost' => 'decimal:2',
-        'total'         => 'decimal:2',
+        'subtotal'         => 'decimal:2',
+        'tax_amount'       => 'decimal:2',
+        'shipping_amount'  => 'decimal:2',
+        'discount_amount'  => 'decimal:2',
+        'total_amount'     => 'decimal:2',
+        'shipping_address' => 'array',
+        'billing_address'  => 'array',
     ];
-
-    // ─── Relationships ─────────────────────────────
 
     public function user()
     {
@@ -50,20 +60,8 @@ class Order extends Model
         return $this->hasOne(Payment::class);
     }
 
-    // ─── Helpers ───────────────────────────────────
-
-    public function isPending(): bool
-    {
-        return $this->status === 'pending';
-    }
-
-    public function isCancellable(): bool
-    {
-        return in_array($this->status, ['pending', 'confirmed']);
-    }
-
     public static function generateOrderNumber(): string
     {
-        return 'NXS-' . strtoupper(uniqid());
+        return 'ORD-' . strtoupper(uniqid());
     }
 }

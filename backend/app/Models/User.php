@@ -11,7 +11,7 @@ use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable, HasUuids, SoftDeletes;
+    use HasApiTokens, HasFactory, HasUuids, Notifiable, SoftDeletes;
 
     protected $fillable = [
         'name',
@@ -19,7 +19,6 @@ class User extends Authenticatable
         'password',
         'role',
         'phone',
-        'address',
         'is_active',
     ];
 
@@ -34,7 +33,10 @@ class User extends Authenticatable
         'is_active'         => 'boolean',
     ];
 
-    // ─── Relationships ─────────────────────────────
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
 
     public function orders()
     {
@@ -44,17 +46,5 @@ class User extends Authenticatable
     public function cart()
     {
         return $this->hasOne(Cart::class);
-    }
-
-    // ─── Helpers ───────────────────────────────────
-
-    public function isAdmin(): bool
-    {
-        return $this->role === 'admin';
-    }
-
-    public function isActive(): bool
-    {
-        return $this->is_active === true;
     }
 }

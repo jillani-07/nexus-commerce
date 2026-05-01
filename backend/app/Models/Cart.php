@@ -2,6 +2,16 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Model;
+
+class Cart extends Model
+{
+    //
+}
+<?php
+
+namespace App\Models;
+
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,8 +25,6 @@ class Cart extends Model
         'session_id',
     ];
 
-    // ─── Relationships ─────────────────────────────
-
     public function user()
     {
         return $this->belongsTo(User::class);
@@ -27,15 +35,8 @@ class Cart extends Model
         return $this->hasMany(CartItem::class);
     }
 
-    // ─── Helpers ───────────────────────────────────
-
     public function getTotalAttribute(): float
     {
         return $this->items->sum(fn($item) => $item->unit_price * $item->quantity);
-    }
-
-    public function getTotalItemsAttribute(): int
-    {
-        return $this->items->sum('quantity');
     }
 }

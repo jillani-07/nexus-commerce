@@ -2,6 +2,16 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Model;
+
+class OrderItem extends Model
+{
+    //
+}
+<?php
+
+namespace App\Models;
+
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -24,8 +34,6 @@ class OrderItem extends Model
         'unit_price'  => 'decimal:2',
         'total_price' => 'decimal:2',
     ];
-
-    // ─── Relationships ─────────────────────────────
 
     public function order()
     {
