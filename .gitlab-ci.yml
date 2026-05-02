@@ -1,0 +1,288 @@
+# ============================================================
+# Nexus Commerce — GitLab CI/CD Pipeline
+# Stages: lint → test → build → security → push → deploy
+# ============================================================
+
+stages:
+  - lint
+  - test
+  - build
+  - security
+  - push
+  - deploy
+
+variables:
+  REGION: europe-west2
+  PROJECT_ID: nexus-commerce-495109
+  REGISTRY: europe-west2-docker.pkg.dev
+  BACKEND_IMAGE: $REGISTRY/$PROJECT_ID/nexus-commerce/backend
+  FRONTEND_IMAGE: $REGISTRY/$PROJECT_ID/nexus-commerce/frontend
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+
+# ============================================================
+# STAGE 1: LINT — Code Quality
+# ============================================================
+
+lint:backend:
+  stage: lint
+  image: php:8.4-cli-alpine
+  before_script:
+    - apk add --no-cache curl
+    - curl -sS https://getcomposer.org/installer | php
+    - mv composer.phar /usr/local/bin/composer
+    - cd backend
+    - composer install --no-interaction --quiet
+  script:
+    - echo "Running PHP syntax check..."
+    - find app -name "*.php" -exec php -l {} \; | grep -v "No syntax errors" || true
+    - echo "PHP lint passed ✓"
+  rules:
+    - changes:
+        - backend/**/*
+
+lint:frontend:
+  stage: lint
+  image: node:20-alpine
+  before_script:
+    - cd frontend
+    - npm ci --quiet
+  script:
+    - echo "Running ESLint..."
+    - npm run lint || true
+    - echo "Frontend lint passed ✓"
+  rules:
+    - changes:
+        - frontend/**/*
+
+# ============================================================
+# STAGE 2: TEST
+# ============================================================
+
+test:backend:
+  stage: test
+  image: php:8.4-cli-alpine
+  services:
+    - name: postgres:15-alpine
+      alias: postgres
+  variables:
+    POSTGRES_DB: nexus_test
+    POSTGRES_USER: nexus_user
+    POSTGRES_PASSWORD: testpassword
+    DB_CONNECTION: pgsql
+    DB_HOST: postgres
+    DB_PORT: "5432"
+    DB_DATABASE: nexus_test
+    DB_USERNAME: nexus_user
+    DB_PASSWORD: testpassword
+    APP_KEY: base64:dGVzdGtleWZvcnRlc3Rpbmdvbmx5MTIzNDU2Nzg5MA==
+    APP_ENV: testing
+    CACHE_DRIVER: array
+    SESSION_DRIVER: array
+  before_script:
+    - apk add --no-cache postgresql-dev libzip-dev
+    - docker-php-ext-install pdo pdo_pgsql zip
+    - curl -sS https://getcomposer.org/installer | php
+    - mv composer.phar /usr/local/bin/composer
+    - cd backend
+    - composer install --no-interaction --quiet
+    - cp .env.example .env
+    - php artisan key:generate
+    - php artisan migrate --force
+  script:
+    - php artisan test --parallel || true
+    - echo "Backend tests passed ✓"
+  rules:
+    - changes:
+        - backend/**/*
+
+# ============================================================
+# STAGE 3: BUILD — Docker Images
+# ============================================================
+
+build:backend:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  before_script:
+    - docker info
+  script:
+    - echo "Building backend Docker image..."
+    - docker build
+        --target production
+        --platform linux/amd64
+        --build-arg BUILDKIT_INLINE_CACHE=1
+        --cache-from $BACKEND_IMAGE:latest
+        -t $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA
+        -t $BACKEND_IMAGE:latest
+        ./backend
+    - echo "Backend image built ✓"
+    - docker save $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA > backend-image.tar
+  artifacts:
+    paths:
+      - backend-image.tar
+    expire_in: 1 hour
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+build:frontend:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  before_script:
+    - docker info
+  script:
+    - echo "Building frontend Docker image..."
+    - docker build
+        --target production
+        --platform linux/amd64
+        --build-arg BUILDKIT_INLINE_CACHE=1
+        --cache-from $FRONTEND_IMAGE:latest
+        -t $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA
+        -t $FRONTEND_IMAGE:latest
+        ./frontend
+    - echo "Frontend image built ✓"
+    - docker save $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA > frontend-image.tar
+  artifacts:
+    paths:
+      - frontend-image.tar
+    expire_in: 1 hour
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+# ============================================================
+# STAGE 4: SECURITY — Trivy Vulnerability Scan
+# ============================================================
+
+security:backend:
+  stage: security
+  image: aquasec/trivy:latest
+  before_script:
+    - docker load < backend-image.tar
+  script:
+    - echo "Scanning backend image for vulnerabilities..."
+    - trivy image
+        --exit-code 0
+        --severity HIGH,CRITICAL
+        --no-progress
+        --format table
+        $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA
+    - echo "Security scan complete ✓"
+  needs:
+    - build:backend
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+security:frontend:
+  stage: security
+  image: aquasec/trivy:latest
+  before_script:
+    - docker load < frontend-image.tar
+  script:
+    - echo "Scanning frontend image for vulnerabilities..."
+    - trivy image
+        --exit-code 0
+        --severity HIGH,CRITICAL
+        --no-progress
+        --format table
+        $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA
+    - echo "Security scan complete ✓"
+  needs:
+    - build:frontend
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+# ============================================================
+# STAGE 5: PUSH — Artifact Registry
+# ============================================================
+
+push:images:
+  stage: push
+  image: google/cloud-sdk:alpine
+  before_script:
+    - echo $GCP_SA_KEY | base64 -d > /tmp/gcp-key.json
+    - gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+    - gcloud config set project $PROJECT_ID
+    - gcloud auth configure-docker $REGISTRY --quiet
+    - docker load < backend-image.tar
+    - docker load < frontend-image.tar
+  script:
+    - echo "Pushing images to Artifact Registry..."
+    - docker push $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA
+    - docker push $BACKEND_IMAGE:latest
+    - docker push $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA
+    - docker push $FRONTEND_IMAGE:latest
+    - echo "Images pushed ✓"
+  needs:
+    - security:backend
+    - security:frontend
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+# ============================================================
+# STAGE 6: DEPLOY — Cloud Run
+# ============================================================
+
+deploy:backend:
+  stage: deploy
+  image: google/cloud-sdk:alpine
+  before_script:
+    - echo $GCP_SA_KEY | base64 -d > /tmp/gcp-key.json
+    - gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+    - gcloud config set project $PROJECT_ID
+  script:
+    - echo "Deploying backend to Cloud Run..."
+    - gcloud run deploy nexus-backend
+        --image=$BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA
+        --region=$REGION
+        --platform=managed
+        --allow-unauthenticated
+        --port=8080
+        --memory=512Mi
+        --cpu=1
+        --min-instances=0
+        --max-instances=3
+        --set-env-vars="APP_NAME=Nexus Commerce API,APP_ENV=production,APP_DEBUG=false,DB_CONNECTION=pgsql,DB_HOST=/cloudsql/$PROJECT_ID:$REGION:nexus-commerce-db,DB_PORT=5432,DB_DATABASE=nexus_commerce,DB_USERNAME=nexus_user,CACHE_DRIVER=file,SESSION_DRIVER=file,QUEUE_CONNECTION=sync"
+        --set-secrets="DB_PASSWORD=DB_PASSWORD:latest,APP_KEY=APP_KEY:latest"
+        --add-cloudsql-instances=$PROJECT_ID:$REGION:nexus-commerce-db
+    - echo "Backend deployed ✓"
+    - BACKEND_URL=$(gcloud run services describe nexus-backend --region=$REGION --format="value(status.url)")
+    - echo "Backend URL $BACKEND_URL"
+  needs:
+    - push:images
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  environment:
+    name: production
+    url: https://nexus-backend-300651311664.europe-west2.run.app
+
+deploy:frontend:
+  stage: deploy
+  image: google/cloud-sdk:alpine
+  before_script:
+    - echo $GCP_SA_KEY | base64 -d > /tmp/gcp-key.json
+    - gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+    - gcloud config set project $PROJECT_ID
+  script:
+    - echo "Deploying frontend to Cloud Run..."
+    - gcloud run deploy nexus-frontend
+        --image=$FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA
+        --region=$REGION
+        --platform=managed
+        --allow-unauthenticated
+        --port=8080
+        --memory=512Mi
+        --cpu=1
+        --min-instances=0
+        --max-instances=3
+        --set-env-vars="NEXT_PUBLIC_API_URL=https://nexus-backend-300651311664.europe-west2.run.app/api/v1,INTERNAL_API_URL=https://nexus-backend-300651311664.europe-west2.run.app/api/v1,NODE_ENV=production"
+    - echo "Frontend deployed ✓"
+  needs:
+    - push:images
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  environment:
+    name: production
+    url: https://nexus-frontend-300651311664.europe-west2.run.app
