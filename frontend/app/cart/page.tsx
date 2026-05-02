@@ -140,7 +140,7 @@ export default function CartPage() {
                 {/* Remove */}
                 <button
                   onClick={() => removeMutation.mutate(item.id)}
-                  className="text-slate-400 hover:text-red-500 transition text-lg self-start"
+                  className="bg-red-50 hover:bg-red-100 text-red-500 transition text-sm px-2 py-1 rounded-lg self-start font-medium"
                 >
                   ✕
                 </button>
