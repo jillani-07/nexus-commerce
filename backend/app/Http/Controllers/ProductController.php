@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,7 +16,11 @@ class ProductController extends Controller
             ->where('is_active', true);
 
         if ($request->filled('category_id')) {
-            $query->where('category_id', $request->category_id);
+            $category = Category::find($request->category_id);
+            if ($category) {
+                $categoryIds = $category->children()->pluck('id')->push($category->id);
+                $query->whereIn('category_id', $categoryIds);
+            }
         }
 
         if ($request->filled('search')) {
@@ -57,7 +62,6 @@ class ProductController extends Controller
         ]);
 
         $validated['slug'] = Str::slug($validated['name']);
-
         $product = Product::create($validated);
 
         return response()->json(['data' => $product], 201);
@@ -91,7 +95,6 @@ class ProductController extends Controller
     public function destroy(Product $product): JsonResponse
     {
         $product->delete();
-
         return response()->json(['message' => 'Product deleted']);
     }
 }
