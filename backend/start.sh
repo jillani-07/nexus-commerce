@@ -3,11 +3,11 @@ set -e
 
 echo "Starting Nexus Commerce Backend..."
 
-php artisan migrate --force
 php artisan config:cache
 php artisan route:cache
 
-nginx &
-php-fpm
+php-fpm -D
 
-wait
+sleep 2
+
+nginx -g "daemon off;"

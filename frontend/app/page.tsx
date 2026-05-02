@@ -1,12 +1,15 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import api from '@/lib/api';
+
+export const revalidate = 0;
+export const dynamic = 'force-dynamic';
 
 async function getFeaturedProducts() {
   try {
     const { data } = await api.get('/products?featured=true&per_page=8');
     return data.data ?? [];
-  } catch {
+  } catch (e) {
+    console.error('Featured products error:', e);
     return [];
   }
 }
@@ -15,7 +18,8 @@ async function getCategories() {
   try {
     const { data } = await api.get('/categories');
     return data.data ?? [];
-  } catch {
+  } catch (e) {
+    console.error('Categories error:', e);
     return [];
   }
 }
@@ -88,30 +92,34 @@ export default async function HomePage() {
             View All →
           </Link>
         </div>
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3">
-          {categories.slice(0, 7).map((cat: any) => (
-            <Link
-              key={cat.id}
-              href={`/products?category_id=${cat.id}`}
-              className="group flex flex-col items-center gap-2"
-            >
-              <div className="w-full aspect-square rounded-2xl overflow-hidden border-2 border-transparent group-hover:border-indigo-400 transition">
-                {cat.image_url ? (
-                  <img
-                    src={cat.image_url}
-                    alt={cat.name}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-slate-100 flex items-center justify-center text-3xl">🛍️</div>
-                )}
-              </div>
-              <span className="text-xs font-medium text-center text-slate-700 group-hover:text-indigo-600 transition">
-                {cat.name}
-              </span>
-            </Link>
-          ))}
-        </div>
+        {categories.length === 0 ? (
+          <p className="text-slate-400 text-sm">No categories found</p>
+        ) : (
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3">
+            {categories.slice(0, 7).map((cat: any) => (
+              <Link
+                key={cat.id}
+                href={`/products?category_id=${cat.id}`}
+                className="group flex flex-col items-center gap-2"
+              >
+                <div className="w-full aspect-square rounded-2xl overflow-hidden border-2 border-transparent group-hover:border-indigo-400 transition">
+                  {cat.image_url ? (
+                    <img
+                      src={cat.image_url}
+                      alt={cat.name}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-slate-100 flex items-center justify-center text-3xl">🛍️</div>
+                  )}
+                </div>
+                <span className="text-xs font-medium text-center text-slate-700 group-hover:text-indigo-600 transition">
+                  {cat.name}
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Featured Products */}
@@ -126,46 +134,50 @@ export default async function HomePage() {
               View All →
             </Link>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
-            {featured.map((product: any) => (
-              <Link
-                key={product.id}
-                href={`/products/${product.id}`}
-                className="bg-white rounded-2xl overflow-hidden border hover:shadow-xl transition group"
-              >
-                <div className="relative h-52 overflow-hidden bg-slate-100">
-                  {product.primary_image?.image_url ? (
-                    <img
-                      src={product.primary_image.image_url}
-                      alt={product.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-5xl">📦</div>
-                  )}
-                  {product.sale_price && (
-                    <span className="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-medium">
-                      Sale
-                    </span>
-                  )}
-                </div>
-                <div className="p-4">
-                  <span className="text-xs text-indigo-600 font-medium">{product.category?.name}</span>
-                  <h3 className="font-semibold text-sm mt-1 mb-2 line-clamp-2 group-hover:text-indigo-600 transition">
-                    {product.name}
-                  </h3>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-900">
-                      £{product.sale_price ?? product.price}
-                    </span>
+          {featured.length === 0 ? (
+            <p className="text-slate-400 text-sm">No featured products found</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
+              {featured.map((product: any) => (
+                <Link
+                  key={product.id}
+                  href={`/products/${product.id}`}
+                  className="bg-white rounded-2xl overflow-hidden border hover:shadow-xl transition group"
+                >
+                  <div className="relative h-52 overflow-hidden bg-slate-100">
+                    {product.primary_image?.image_url ? (
+                      <img
+                        src={product.primary_image.image_url}
+                        alt={product.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-5xl">📦</div>
+                    )}
                     {product.sale_price && (
-                      <span className="text-xs text-slate-400 line-through">£{product.price}</span>
+                      <span className="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-medium">
+                        Sale
+                      </span>
                     )}
                   </div>
-                </div>
-              </Link>
-            ))}
-          </div>
+                  <div className="p-4">
+                    <span className="text-xs text-indigo-600 font-medium">{product.category?.name}</span>
+                    <h3 className="font-semibold text-sm mt-1 mb-2 line-clamp-2 group-hover:text-indigo-600 transition">
+                      {product.name}
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-900">
+                        £{product.sale_price ?? product.price}
+                      </span>
+                      {product.sale_price && (
+                        <span className="text-xs text-slate-400 line-through">£{product.price}</span>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 

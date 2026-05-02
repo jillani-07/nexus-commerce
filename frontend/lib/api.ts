@@ -2,10 +2,10 @@ import axios from 'axios';
 
 const isServer = typeof window === 'undefined';
 
+const BACKEND_URL = 'https://nexus-backend-300651311664.europe-west2.run.app/api/v1';
+
 const api = axios.create({
-  baseURL: isServer
-    ? process.env.INTERNAL_API_URL
-    : process.env.NEXT_PUBLIC_API_URL,
+  baseURL: isServer ? BACKEND_URL : (process.env.NEXT_PUBLIC_API_URL ?? BACKEND_URL),
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
