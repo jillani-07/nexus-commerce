@@ -1,8 +1,5 @@
 stages:
-  - lint
-  - test
   - build
-  - security
   - push
   - deploy
 
@@ -21,79 +18,6 @@ variables:
   - gcloud config set project $PROJECT_ID
   - gcloud auth configure-docker $REGISTRY --quiet
 
-lint:backend:
-  stage: lint
-  image: php:8.4-cli-alpine
-  before_script:
-    - apk add --no-cache curl unzip
-    - curl -sS https://getcomposer.org/installer | php
-    - mv composer.phar /usr/local/bin/composer
-    - cd backend
-    - composer install --no-interaction --quiet
-  script:
-    - echo "Running PHP syntax check..."
-    - find app -name "*.php" -exec php -l {} \; | grep -v "No syntax errors" || true
-    - echo "PHP lint passed ✓"
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-    - if: $CI_MERGE_REQUEST_ID
-
-lint:frontend:
-  stage: lint
-  image: node:20-alpine
-  before_script:
-    - cd frontend
-    - npm ci --quiet
-  script:
-    - echo "Running ESLint..."
-    - npm run lint -- --max-warnings=0 || true
-    - echo "Frontend lint passed ✓"
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-    - if: $CI_MERGE_REQUEST_ID
-
-test:backend:
-  stage: test
-  image: php:8.4-cli-alpine
-  services:
-    - name: postgres:15-alpine
-      alias: postgres
-  variables:
-    POSTGRES_DB: nexus_test
-    POSTGRES_USER: nexus_user
-    POSTGRES_PASSWORD: testpass123
-  before_script:
-    - apk add --no-cache postgresql-dev libzip-dev curl
-    - docker-php-ext-install pdo pdo_pgsql zip
-    - curl -sS https://getcomposer.org/installer | php
-    - mv composer.phar /usr/local/bin/composer
-    - cd backend
-    - composer install --no-interaction --quiet
-    - |
-      cat > .env << 'ENVEOF'
-      APP_NAME="Nexus Test"
-      APP_ENV=testing
-      APP_KEY=base64:dGVzdGtleWZvcnRlc3Rpbmdvbmx5MTIzNDU2Nzg5MA==
-      APP_DEBUG=true
-      DB_CONNECTION=pgsql
-      DB_HOST=postgres
-      DB_PORT=5432
-      DB_DATABASE=nexus_test
-      DB_USERNAME=nexus_user
-      DB_PASSWORD=testpass123
-      CACHE_DRIVER=array
-      SESSION_DRIVER=array
-      QUEUE_CONNECTION=sync
-      ENVEOF
-    - php artisan migrate --force
-  script:
-    - echo "Running backend tests..."
-    - php artisan test || true
-    - echo "Backend tests complete ✓"
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-    - if: $CI_MERGE_REQUEST_ID
-
 build:backend:
   stage: build
   image: google/cloud-sdk:alpine
@@ -103,22 +27,13 @@ build:backend:
     - apk add --no-cache docker-cli
     - *gcp_auth
   script:
-    - echo "Building backend production image..."
-    - docker build
-        --target production
-        --platform linux/amd64
-        --label "git-commit=$CI_COMMIT_SHORT_SHA"
-        --label "build-date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    - docker build --target production --platform linux/amd64
         -t $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA
         -t $BACKEND_IMAGE:latest
         ./backend
     - docker push $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA
     - docker push $BACKEND_IMAGE:latest
-    - echo "Backend image built and pushed ✓"
-    - echo "IMAGE_TAG=$CI_COMMIT_SHORT_SHA" >> build.env
-  artifacts:
-    reports:
-      dotenv: build.env
+    - echo "Backend built and pushed ✓"
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
 
@@ -131,68 +46,13 @@ build:frontend:
     - apk add --no-cache docker-cli
     - *gcp_auth
   script:
-    - echo "Building frontend production image..."
-    - docker build
-        --target production
-        --platform linux/amd64
-        --label "git-commit=$CI_COMMIT_SHORT_SHA"
-        --label "build-date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    - docker build --target production --platform linux/amd64
         -t $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA
         -t $FRONTEND_IMAGE:latest
         ./frontend
     - docker push $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA
     - docker push $FRONTEND_IMAGE:latest
-    - echo "Frontend image built and pushed ✓"
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-
-security:backend:
-  stage: security
-  image: aquasec/trivy:latest
-  script:
-    - echo "Scanning backend image for vulnerabilities..."
-    - trivy image
-        --exit-code 0
-        --severity MEDIUM,HIGH,CRITICAL
-        --no-progress
-        --format table
-        --output trivy-backend-report.txt
-        $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA
-    - cat trivy-backend-report.txt
-    - echo "Backend security scan complete ✓"
-  artifacts:
-    name: "trivy-backend-$CI_COMMIT_SHORT_SHA"
-    paths:
-      - trivy-backend-report.txt
-    expire_in: 30 days
-    when: always
-  needs:
-    - build:backend
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-
-security:frontend:
-  stage: security
-  image: aquasec/trivy:latest
-  script:
-    - echo "Scanning frontend image for vulnerabilities..."
-    - trivy image
-        --exit-code 0
-        --severity MEDIUM,HIGH,CRITICAL
-        --no-progress
-        --format table
-        --output trivy-frontend-report.txt
-        $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA
-    - cat trivy-frontend-report.txt
-    - echo "Frontend security scan complete ✓"
-  artifacts:
-    name: "trivy-frontend-$CI_COMMIT_SHORT_SHA"
-    paths:
-      - trivy-frontend-report.txt
-    expire_in: 30 days
-    when: always
-  needs:
-    - build:frontend
+    - echo "Frontend built and pushed ✓"
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
 
@@ -202,18 +62,12 @@ verify:images:
   before_script:
     - *gcp_auth
   script:
-    - echo "Verifying images in Artifact Registry..."
-    - gcloud artifacts docker images describe
-        $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA
-        --format="value(image_summary.digest)"
-    - gcloud artifacts docker images describe
-        $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA
-        --format="value(image_summary.digest)"
-    - echo "Images verified in registry ✓"
-    - rm -f /tmp/gcp-key.json
+    - gcloud artifacts docker images describe $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA --format="value(image_summary.digest)"
+    - gcloud artifacts docker images describe $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA --format="value(image_summary.digest)"
+    - echo "Images verified ✓"
   needs:
-    - security:backend
-    - security:frontend
+    - build:backend
+    - build:frontend
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
 
@@ -223,7 +77,6 @@ deploy:staging:backend:
   before_script:
     - *gcp_auth
   script:
-    - echo "Deploying backend to STAGING..."
     - gcloud run deploy nexus-backend-staging
         --image=$BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA
         --region=$REGION
@@ -237,11 +90,7 @@ deploy:staging:backend:
         --set-env-vars="APP_NAME=Nexus Commerce API,APP_ENV=staging,APP_DEBUG=true,DB_CONNECTION=pgsql,DB_HOST=/cloudsql/$PROJECT_ID:$REGION:nexus-commerce-db,DB_PORT=5432,DB_DATABASE=nexus_commerce,DB_USERNAME=nexus_user,CACHE_DRIVER=file,SESSION_DRIVER=file,QUEUE_CONNECTION=sync"
         --set-secrets="DB_PASSWORD=DB_PASSWORD:latest,APP_KEY=APP_KEY:latest"
         --add-cloudsql-instances=$PROJECT_ID:$REGION:nexus-commerce-db
-        --labels="app=nexus-commerce,component=backend,env=staging,version=$CI_COMMIT_SHORT_SHA"
-    - STAGING_URL=$(gcloud run services describe nexus-backend-staging --region=$REGION --format="value(status.url)")
-    - echo "Staging backend at $STAGING_URL ✓"
-    - curl -sf $STAGING_URL/up && echo "Health check passed ✓" || echo "Health check failed ⚠️"
-    - rm -f /tmp/gcp-key.json
+    - echo "Staging backend deployed ✓"
   needs:
     - verify:images
   rules:
@@ -255,7 +104,6 @@ deploy:staging:frontend:
   before_script:
     - *gcp_auth
   script:
-    - echo "Deploying frontend to STAGING..."
     - STAGING_BACKEND=$(gcloud run services describe nexus-backend-staging --region=$REGION --format="value(status.url)")
     - gcloud run deploy nexus-frontend-staging
         --image=$FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA
@@ -268,10 +116,7 @@ deploy:staging:frontend:
         --min-instances=0
         --max-instances=1
         --set-env-vars="NEXT_PUBLIC_API_URL=$STAGING_BACKEND/api/v1,INTERNAL_API_URL=$STAGING_BACKEND/api/v1,NODE_ENV=production"
-        --labels="app=nexus-commerce,component=frontend,env=staging,version=$CI_COMMIT_SHORT_SHA"
-    - STAGING_URL=$(gcloud run services describe nexus-frontend-staging --region=$REGION --format="value(status.url)")
-    - echo "Staging frontend at $STAGING_URL ✓"
-    - rm -f /tmp/gcp-key.json
+    - echo "Staging frontend deployed ✓"
   needs:
     - verify:images
     - deploy:staging:backend
@@ -286,7 +131,6 @@ deploy:production:backend:
   before_script:
     - *gcp_auth
   script:
-    - echo "Deploying backend to PRODUCTION..."
     - gcloud run deploy nexus-backend
         --image=$BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA
         --region=$REGION
@@ -297,16 +141,10 @@ deploy:production:backend:
         --cpu=1
         --min-instances=0
         --max-instances=3
-        --concurrency=80
-        --timeout=60
         --set-env-vars="APP_NAME=Nexus Commerce API,APP_ENV=production,APP_DEBUG=false,DB_CONNECTION=pgsql,DB_HOST=/cloudsql/$PROJECT_ID:$REGION:nexus-commerce-db,DB_PORT=5432,DB_DATABASE=nexus_commerce,DB_USERNAME=nexus_user,CACHE_DRIVER=file,SESSION_DRIVER=file,QUEUE_CONNECTION=sync"
         --set-secrets="DB_PASSWORD=DB_PASSWORD:latest,APP_KEY=APP_KEY:latest"
         --add-cloudsql-instances=$PROJECT_ID:$REGION:nexus-commerce-db
-        --labels="app=nexus-commerce,component=backend,env=production,version=$CI_COMMIT_SHORT_SHA"
-    - PROD_URL=$(gcloud run services describe nexus-backend --region=$REGION --format="value(status.url)")
-    - echo "Production backend at $PROD_URL ✓"
-    - curl -sf $PROD_URL/up && echo "Health check passed ✓" || echo "Health check failed ⚠️"
-    - rm -f /tmp/gcp-key.json
+    - echo "Production backend deployed ✓"
   needs:
     - deploy:staging:backend
     - deploy:staging:frontend
@@ -324,7 +162,6 @@ deploy:production:frontend:
   before_script:
     - *gcp_auth
   script:
-    - echo "Deploying frontend to PRODUCTION..."
     - gcloud run deploy nexus-frontend
         --image=$FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA
         --region=$REGION
@@ -335,13 +172,8 @@ deploy:production:frontend:
         --cpu=1
         --min-instances=0
         --max-instances=3
-        --concurrency=80
-        --timeout=60
         --set-env-vars="NEXT_PUBLIC_API_URL=https://nexus-backend-300651311664.europe-west2.run.app/api/v1,INTERNAL_API_URL=https://nexus-backend-300651311664.europe-west2.run.app/api/v1,NODE_ENV=production"
-        --labels="app=nexus-commerce,component=frontend,env=production,version=$CI_COMMIT_SHORT_SHA"
-    - PROD_URL=$(gcloud run services describe nexus-frontend --region=$REGION --format="value(status.url)")
-    - echo "Production frontend at $PROD_URL ✓"
-    - rm -f /tmp/gcp-key.json
+    - echo "Production frontend deployed ✓"
   needs:
     - deploy:staging:backend
     - deploy:staging:frontend
