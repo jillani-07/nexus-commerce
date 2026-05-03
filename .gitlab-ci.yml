@@ -335,9 +335,9 @@ deploy:staging:frontend:
 
 # ================================================================
 # STAGE 6: DEPLOY PRODUCTION (Manual Approval Required)
-# Purpose: Sirf manually approve karne ke baad production pe jaye
-# Real-world: Senior engineer click karta hai "Deploy" button
-# Security: Protected environment — sirf maintainers deploy kar sakte
+#Purpose: Automatically deploy to the staging environment on every push.
+#Real-world usage: This environment is used by the QA team for testing.
+#Security: Protected environment — only maintainers are authorized to deploy.
 # ================================================================
 
 deploy:production:backend:
