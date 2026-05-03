@@ -155,20 +155,18 @@ build:frontend:
 # ============================================================
 # STAGE 4: SECURITY — Trivy Vulnerability Scan
 # ============================================================
-
 security:backend:
   stage: security
-  image: aquasec/trivy:latest
+  image: docker:24
+  services:
+    - docker:24-dind
   before_script:
     - docker load < backend-image.tar
+    - apk add --no-cache curl
+    - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
   script:
     - echo "Scanning backend image for vulnerabilities..."
-    - trivy image
-        --exit-code 0
-        --severity HIGH,CRITICAL
-        --no-progress
-        --format table
-        $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA
+    - trivy image --exit-code 0 --severity HIGH,CRITICAL --no-progress $BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA
     - echo "Security scan complete ✓"
   needs:
     - build:backend
@@ -177,17 +175,16 @@ security:backend:
 
 security:frontend:
   stage: security
-  image: aquasec/trivy:latest
+  image: docker:24
+  services:
+    - docker:24-dind
   before_script:
     - docker load < frontend-image.tar
+    - apk add --no-cache curl
+    - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
   script:
     - echo "Scanning frontend image for vulnerabilities..."
-    - trivy image
-        --exit-code 0
-        --severity HIGH,CRITICAL
-        --no-progress
-        --format table
-        $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA
+    - trivy image --exit-code 0 --severity HIGH,CRITICAL --no-progress $FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA
     - echo "Security scan complete ✓"
   needs:
     - build:frontend
