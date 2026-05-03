@@ -86,27 +86,27 @@ test:backend:
   variables:
     POSTGRES_DB: nexus_test
     POSTGRES_USER: nexus_user
-    POSTGRES_PASSWORD: testpassword123
+    POSTGRES_PASSWORD: testpass123
     DB_CONNECTION: pgsql
     DB_HOST: postgres
     DB_PORT: "5432"
     DB_DATABASE: nexus_test
     DB_USERNAME: nexus_user
-    DB_PASSWORD: testpassword123
+    DB_PASSWORD: testpass123
     APP_KEY: base64:dGVzdGtleWZvcnRlc3Rpbmdvbmx5MTIzNDU2Nzg5MA==
     APP_ENV: testing
     CACHE_DRIVER: array
     SESSION_DRIVER: array
     QUEUE_CONNECTION: sync
   before_script:
-    - apk add --no-cache postgresql-dev libzip-dev
+    - apk add --no-cache postgresql-dev libzip-dev curl
     - docker-php-ext-install pdo pdo_pgsql zip
     - curl -sS https://getcomposer.org/installer | php
     - mv composer.phar /usr/local/bin/composer
     - cd backend
     - composer install --no-interaction --quiet
     - cp .env.example .env
-    - php artisan key:generate
+    - echo "APP_KEY=base64:dGVzdGtleWZvcnRlc3Rpbmdvbmx5MTIzNDU2Nzg5MA==" >> .env
     - php artisan migrate --force
   script:
     - echo "Running backend tests..."
@@ -115,7 +115,7 @@ test:backend:
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_MERGE_REQUEST_ID
-
+    
 # ================================================================
 # STAGE 3: BUILD
 # Purpose: Build production Docker images (AMD64 for Cloud Run)
