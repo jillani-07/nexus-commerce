@@ -264,20 +264,89 @@ verify:images:
     - if: $CI_COMMIT_BRANCH == "main"
 
 # ================================================================
-# STAGE 6: DEPLOY
-# Purpose: Zero-downtime deploy to Cloud Run
-# Scalability: min=0 (cost) max=3 (scale)
-# Security: Secrets from Secret Manager, never in env
-# Availability: Cloud Run handles health checks automatically
+# ================================================================
+# STAGE 6: DEPLOY STAGING (Automatic)
+# Purpose: Har main push pe staging pe auto deploy
+# Real-world: QA team yahan test karta hai
 # ================================================================
 
-deploy:backend:
+deploy:staging:backend:
   stage: deploy
   image: google/cloud-sdk:alpine
   before_script:
     - *gcp_auth
   script:
-    - echo "Deploying backend to Cloud Run..."
+    - echo "Deploying backend to STAGING..."
+    - gcloud run deploy nexus-backend-staging
+        --image=$BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA
+        --region=$REGION
+        --platform=managed
+        --allow-unauthenticated
+        --port=8080
+        --memory=256Mi
+        --cpu=1
+        --min-instances=0
+        --max-instances=1
+        --set-env-vars="APP_NAME=Nexus Commerce API,APP_ENV=staging,APP_DEBUG=true,DB_CONNECTION=pgsql,DB_HOST=/cloudsql/$PROJECT_ID:$REGION:nexus-commerce-db,DB_PORT=5432,DB_DATABASE=nexus_commerce,DB_USERNAME=nexus_user,CACHE_DRIVER=file,SESSION_DRIVER=file,QUEUE_CONNECTION=sync"
+        --set-secrets="DB_PASSWORD=DB_PASSWORD:latest,APP_KEY=APP_KEY:latest"
+        --add-cloudsql-instances=$PROJECT_ID:$REGION:nexus-commerce-db
+        --labels="app=nexus-commerce,component=backend,env=staging,version=$CI_COMMIT_SHORT_SHA"
+    - STAGING_URL=$(gcloud run services describe nexus-backend-staging --region=$REGION --format="value(status.url)")
+    - echo "Staging backend live at $STAGING_URL ✓"
+    - curl -sf $STAGING_URL/up && echo "Health check passed ✓" || echo "Health check failed ⚠️"
+  needs:
+    - verify:images
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  environment:
+    name: staging/backend
+    url: https://nexus-backend-staging-$PROJECT_ID.europe-west2.run.app
+
+deploy:staging:frontend:
+  stage: deploy
+  image: google/cloud-sdk:alpine
+  before_script:
+    - *gcp_auth
+  script:
+    - echo "Deploying frontend to STAGING..."
+    - STAGING_BACKEND=$(gcloud run services describe nexus-backend-staging --region=$REGION --format="value(status.url)")
+    - gcloud run deploy nexus-frontend-staging
+        --image=$FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA
+        --region=$REGION
+        --platform=managed
+        --allow-unauthenticated
+        --port=8080
+        --memory=256Mi
+        --cpu=1
+        --min-instances=0
+        --max-instances=1
+        --set-env-vars="NEXT_PUBLIC_API_URL=$STAGING_BACKEND/api/v1,INTERNAL_API_URL=$STAGING_BACKEND/api/v1,NODE_ENV=production"
+        --labels="app=nexus-commerce,component=frontend,env=staging,version=$CI_COMMIT_SHORT_SHA"
+    - STAGING_URL=$(gcloud run services describe nexus-frontend-staging --region=$REGION --format="value(status.url)")
+    - echo "Staging frontend live at $STAGING_URL ✓"
+  needs:
+    - verify:images
+    - deploy:staging:backend
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  environment:
+    name: staging/frontend
+    url: https://nexus-frontend-staging-$PROJECT_ID.europe-west2.run.app
+
+# ================================================================
+# STAGE 6: DEPLOY PRODUCTION (Manual Approval Required)
+# Purpose: Sirf manually approve karne ke baad production pe jaye
+# Real-world: Senior engineer click karta hai "Deploy" button
+# Security: Protected environment — sirf maintainers deploy kar sakte
+# ================================================================
+
+deploy:production:backend:
+  stage: deploy
+  image: google/cloud-sdk:alpine
+  before_script:
+    - *gcp_auth
+  script:
+    - echo "Deploying backend to PRODUCTION..."
     - gcloud run deploy nexus-backend
         --image=$BACKEND_IMAGE:$CI_COMMIT_SHORT_SHA
         --region=$REGION
@@ -293,26 +362,28 @@ deploy:backend:
         --set-env-vars="APP_NAME=Nexus Commerce API,APP_ENV=production,APP_DEBUG=false,DB_CONNECTION=pgsql,DB_HOST=/cloudsql/$PROJECT_ID:$REGION:nexus-commerce-db,DB_PORT=5432,DB_DATABASE=nexus_commerce,DB_USERNAME=nexus_user,CACHE_DRIVER=file,SESSION_DRIVER=file,QUEUE_CONNECTION=sync"
         --set-secrets="DB_PASSWORD=DB_PASSWORD:latest,APP_KEY=APP_KEY:latest"
         --add-cloudsql-instances=$PROJECT_ID:$REGION:nexus-commerce-db
-        --labels="app=nexus-commerce,component=backend,version=$CI_COMMIT_SHORT_SHA"
-    - BACKEND_URL=$(gcloud run services describe nexus-backend --region=$REGION --format="value(status.url)")
-    - echo "Backend deployed at $BACKEND_URL ✓"
-    - echo "Health check..."
-    - curl -sf $BACKEND_URL/up && echo "Health check passed ✓" || echo "Health check failed ⚠️"
+        --labels="app=nexus-commerce,component=backend,env=production,version=$CI_COMMIT_SHORT_SHA"
+    - PROD_URL=$(gcloud run services describe nexus-backend --region=$REGION --format="value(status.url)")
+    - echo "Production backend live at $PROD_URL ✓"
+    - curl -sf $PROD_URL/up && echo "Health check passed ✓" || echo "Health check failed ⚠️"
   needs:
-    - verify:images
+    - deploy:staging:backend
+    - deploy:staging:frontend
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
+      when: manual
+  allow_failure: false
   environment:
     name: production/backend
     url: https://nexus-backend-300651311664.europe-west2.run.app
 
-deploy:frontend:
+deploy:production:frontend:
   stage: deploy
   image: google/cloud-sdk:alpine
   before_script:
     - *gcp_auth
   script:
-    - echo "Deploying frontend to Cloud Run..."
+    - echo "Deploying frontend to PRODUCTION..."
     - gcloud run deploy nexus-frontend
         --image=$FRONTEND_IMAGE:$CI_COMMIT_SHORT_SHA
         --region=$REGION
@@ -326,13 +397,16 @@ deploy:frontend:
         --concurrency=80
         --timeout=60
         --set-env-vars="NEXT_PUBLIC_API_URL=https://nexus-backend-300651311664.europe-west2.run.app/api/v1,INTERNAL_API_URL=https://nexus-backend-300651311664.europe-west2.run.app/api/v1,NODE_ENV=production"
-        --labels="app=nexus-commerce,component=frontend,version=$CI_COMMIT_SHORT_SHA"
-    - FRONTEND_URL=$(gcloud run services describe nexus-frontend --region=$REGION --format="value(status.url)")
-    - echo "Frontend deployed at $FRONTEND_URL ✓"
+        --labels="app=nexus-commerce,component=frontend,env=production,version=$CI_COMMIT_SHORT_SHA"
+    - PROD_URL=$(gcloud run services describe nexus-frontend --region=$REGION --format="value(status.url)")
+    - echo "Production frontend live at $PROD_URL ✓"
   needs:
-    - verify:images
+    - deploy:staging:backend
+    - deploy:staging:frontend
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
+      when: manual
+  allow_failure: false
   environment:
     name: production/frontend
     url: https://nexus-frontend-300651311664.europe-west2.run.app
