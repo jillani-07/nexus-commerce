@@ -76,15 +76,14 @@ test-backend:
   stage: test
   image: php:8.4-cli-alpine
   before_script:
-    - apk add --no-cache postgresql-dev libzip-dev
+    - apk add --no-cache postgresql-dev libzip-dev curl
     - docker-php-ext-install pdo pdo_pgsql zip
     - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-    - cd backend && composer install --no-interaction --quiet
+    - composer install --no-interaction --quiet --working-dir=backend
   script:
-    - cd backend
-    - cp .env.example .env
-    - php artisan key:generate
-    - php artisan route:list --path=api | grep -c "GET\|POST\|PUT\|DELETE" || true
+    - cp backend/.env.example backend/.env
+    - php backend/artisan key:generate
+    - php backend/artisan route:list --path=api | grep -c "GET\|POST\|PUT\|DELETE" || true
     - echo "✅ Backend routes verified"
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
@@ -94,10 +93,9 @@ test-frontend:
   stage: test
   image: node:20-alpine
   before_script:
-    - cd frontend && npm ci --quiet
+    - npm ci --quiet --prefix frontend
   script:
-    - cd frontend
-    - npx tsc --noEmit || true
+    - cd frontend && npx tsc --noEmit || true
     - echo "✅ Frontend TypeScript check done"
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
