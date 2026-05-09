@@ -1,5 +1,8 @@
 <?php
 
+// Nexus Commerce — CORS Configuration
+// Updated via CI/CD pipeline test
+
 return [
     'paths' => ['api/*'],
     'allowed_methods' => ['*'],
