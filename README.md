@@ -25,57 +25,54 @@ Nexus Commerce is a full-stack e-commerce platform targeting the UK market. Cust
 
 ```mermaid
 graph TB
-    User(["👤 UK User<br/>Browser"])
+    User(["UK User Browser"])
 
-    subgraph GCP ["☁️ Google Cloud Platform — europe-west2 (London)"]
+    subgraph GCP ["Google Cloud Platform — europe-west2 (London)"]
         
-        subgraph CloudRun ["🚀 Cloud Run — Serverless Containers"]
-            FE["📱 Frontend<br/>Next.js 14<br/>Port 8080"]
-            BE["⚙️ Backend<br/>Laravel 11 + PHP 8.4<br/>Nginx + PHP-FPM<br/>Port 8080"]
+        subgraph CloudRun ["Cloud Run — Serverless Containers"]
+            FE["Frontend Next.js 14 Port 8080"]
+            BE["Backend Laravel 11 + PHP 8.4 Nginx + PHP-FPM Port 8080"]
         end
 
-        subgraph Data ["🗄️ Data Layer"]
-            SQL[("🐘 Cloud SQL<br/>PostgreSQL 15<br/>Private Unix Socket")]
-            SM["🔐 Secret Manager<br/>APP_KEY<br/>DB_PASSWORD"]
+        subgraph Data ["Data Layer"]
+            SQL[("Cloud SQL PostgreSQL 15 Private Unix Socket")]
+            SM["Secret Manager APP_KEY DB_PASSWORD"]
         end
 
-        subgraph Registry ["📦 Artifact Registry"]
-            IMG["🐳 Docker Images<br/>backend:sha<br/>frontend:sha"]
+        subgraph Registry ["Artifact Registry"]
+            IMG["Docker Images backend:sha frontend:sha"]
         end
 
-        subgraph Monitoring ["📊 Cloud Monitoring"]
-            UP["✅ Uptime Checks<br/>Every 5 min"]
-            DASH["📈 Dashboard<br/>Requests / Errors / Latency"]
+        subgraph Monitoring ["Cloud Monitoring"]
+            UP["Uptime Checks Every 5 min"]
+            DASH["Dashboard Requests / Errors / Latency"]
         end
     end
 
-    subgraph DevOps ["🔧 DevOps — GitLab"]
-        GIT["📝 GitLab Repo<br/>Source Code"]
-        PIPE["⚡ CI/CD Pipeline<br/>Build → Test → Deploy"]
-        TF["🏗️ Terraform<br/>Infrastructure as Code"]
+    subgraph DevOps ["DevOps — GitLab"]
+        GIT["GitLab Repo Source Code"]
+        PIPE["CI/CD Pipeline Build to Test to Deploy"]
+        TF["Terraform Infrastructure as Code"]
     end
 
-    User -->|"HTTPS"| FE
-    FE -->|"REST API calls"| BE
-    BE -->|"Unix Socket"| SQL
-    BE -->|"Fetch secrets<br/>at runtime"| SM
+    User -->|HTTPS| FE
+    FE -->|REST API calls| BE
+    BE -->|Unix Socket| SQL
+    BE -->|Fetch secrets at runtime| SM
 
-    GIT -->|"git push triggers"| PIPE
-    PIPE -->|"docker push"| IMG
-    PIPE -->|"gcloud run deploy"| CloudRun
-    IMG -->|"pull image"| CloudRun
+    GIT -->|git push triggers| PIPE
+    PIPE -->|docker push| IMG
+    PIPE -->|gcloud run deploy| CloudRun
+    IMG -->|pull image| CloudRun
 
-    TF -->|"terraform apply"| GCP
-    UP -->|"monitor"| FE
-    UP -->|"monitor"| BE
+    TF -->|terraform apply| GCP
+    UP -->|monitor| FE
+    UP -->|monitor| BE
 ```
 
-CI/CD (GitLab):
-git push → Build Docker image → Test → Push to Artifact Registry → Deploy to Cloud Run
+CI/CD (GitLab): git push → Build Docker image → Test → Push to Artifact Registry → Deploy to Cloud Run
 
-Infrastructure (Terraform):
-All GCP resources defined as code → reproducible with terraform apply
-```
+Infrastructure (Terraform): All GCP resources defined as code → reproducible with terraform apply
 
 ---
 
@@ -83,12 +80,17 @@ All GCP resources defined as code → reproducible with terraform apply
 
 ```mermaid
 flowchart LR
-    DEV["Developer MacBook"] -->|git push main| GL["GitLab"]
-    GL --> BUILD["BUILD docker buildx"]
-    BUILD --> TEST["TEST PHP and TypeScript"]
-    TEST --> PUSH["PUSH Artifact Registry"]
-    PUSH --> DEPLOY["DEPLOY Cloud Run"]
-    DEPLOY -->|live| PROD["Production europe-west2"]
+    DEV[Developer MacBook] -->|git push main| GL[GitLab]
+    GL --> BUILD
+
+    subgraph PIPELINE [GitLab CICD Pipeline]
+        BUILD[BUILD docker buildx] --> TEST
+        TEST[TEST PHP TypeScript] --> PUSH
+        PUSH[PUSH Artifact Registry] --> DEPLOY
+        DEPLOY[DEPLOY Cloud Run]
+    end
+
+    DEPLOY -->|live| PROD[Production europe-west2]
 
     style BUILD fill:#4A90D9,color:#fff
     style TEST fill:#7B68EE,color:#fff
@@ -96,6 +98,7 @@ flowchart LR
     style DEPLOY fill:#3CB371,color:#fff
     style PROD fill:#FF6B6B,color:#fff
 ```
+---
 ## Tech Stack
 
 | Layer | Technology | Why |
