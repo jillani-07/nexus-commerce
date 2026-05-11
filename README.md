@@ -70,12 +70,6 @@ graph TB
     UP -->|monitor| BE
 ```
 
-CI/CD (GitLab): git push → Build Docker image → Test → Push to Artifact Registry → Deploy to Cloud Run
-
-Infrastructure (Terraform): All GCP resources defined as code → reproducible with terraform apply
-
----
-
 ## CI/CD Pipeline
 
 ```mermaid
@@ -212,4 +206,4 @@ docker exec -it nexus_backend php artisan migrate:fresh --seed
 
 **Jillani Ansari** — Cloud & DevOps Engineer
 
-[LinkedIn](https://linkedin.com/in/www.linkedin.com/in/jillani05) · [GitLab](https://gitlab.com/jillaniiant2015/nexus-commerce)
+[LinkedIn](https://linkedin.com/in/jillani05)
