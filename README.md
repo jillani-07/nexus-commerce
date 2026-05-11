@@ -102,8 +102,6 @@ flowchart LR
     style DEPLOY fill:#3CB371,color:#fff
     style PROD fill:#FF6B6B,color:#fff
 ```
-
-
 ## Tech Stack
 
 | Layer | Technology | Why |
