@@ -83,18 +83,17 @@ All GCP resources defined as code → reproducible with terraform apply
 
 ```mermaid
 flowchart LR
-    DEV["💻 Developer<br/>MacBook"] -->|"git push main"| GL["🦊 GitLab"]
-    
+    DEV["Developer MacBook"] -->|"git push main"| GL["GitLab"]
     GL --> BUILD
-    
-    subgraph PIPELINE ["GitLab CI/CD Pipeline"]
-        BUILD["🔨 BUILD<br/>docker buildx<br/>linux/amd64"] --> TEST
-        TEST["🧪 TEST<br/>PHP routes<br/>TypeScript check"] --> PUSH
-        PUSH["📤 PUSH<br/>Artifact Registry<br/>tagged:commit-sha"] --> DEPLOY
-        DEPLOY["🚀 DEPLOY<br/>Cloud Run update<br/>zero downtime"]
+
+    subgraph PIPELINE [GitLab CICD Pipeline]
+        BUILD["BUILD docker buildx linux/amd64"] --> TEST
+        TEST["TEST PHP routes TypeScript check"] --> PUSH
+        PUSH["PUSH Artifact Registry tagged commit-sha"] --> DEPLOY
+        DEPLOY["DEPLOY Cloud Run update zero downtime"]
     end
 
-    DEPLOY -->|"live"| PROD["🌍 Production<br/>europe-west2.run.app"]
+    DEPLOY -->|"live"| PROD["Production europe-west2.run.app"]
 
     style BUILD fill:#4A90D9,color:#fff
     style TEST fill:#7B68EE,color:#fff
